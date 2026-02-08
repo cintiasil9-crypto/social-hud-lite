@@ -295,13 +295,12 @@ def profile_self():
 
     # LITE summary
     text = (
-        "📊 My Profile (Lite)\n"
-        "• Social vibe: Balanced\n"
-        "• Engagement: Medium\n"
-        "• Data sample: Limited\n\n"
-        "Upgrade to unlock full analytics."
-    )
-
+    "My Profile (Lite)\n"
+    "- Social vibe: Balanced\n"
+    "- Engagement: Medium\n"
+    "- Data sample: Limited\n\n"
+    "Upgrade to unlock full analytics."
+)
     return jsonify({"text": text})
 
 @app.route("/profile/lookup", methods=["POST"])
@@ -313,23 +312,24 @@ def profile_lookup():
         return jsonify({"error": "missing name"}), 400
 
     text = (
-        f"📊 {name} (Lite)\n"
-        "• First impression: Neutral\n"
-        "• Social energy: Moderate\n\n"
-        "Upgrade to see deep traits."
-    )
+    f"{name} (Lite)\n"
+    "- First impression: Neutral\n"
+    "- Social energy: Moderate\n\n"
+    "Upgrade to see deep traits."
+)
+
 
     return jsonify({"text": text})
 
 @app.route("/room/vibe", methods=["POST"])
 def room_vibe():
     text = (
-        "🌈 Room Vibe (Lite)\n"
-        "• Activity: Moderate\n"
-        "• Energy: Mixed\n"
-        "• Chat flow: Stable\n\n"
-        "Full version shows live analytics."
-    )
+    "Room Vibe (Lite)\n"
+    "- Activity: Moderate\n"
+    "- Energy: Mixed\n"
+    "- Chat flow: Stable\n\n"
+    "Full version shows live analytics."
+)
 
     return jsonify({"text": text})
 
