@@ -1,5 +1,5 @@
 from flask import Flask, Response, jsonify, request
-import os, time, math, requests, json, re
+import os, time, math, requests, json, re, random
 from collections import defaultdict
 
 # =================================================
@@ -13,9 +13,9 @@ CACHE = {"profiles": None, "ts": 0}
 CACHE_TTL = 300
 NOW = time.time()
 
-# =================================================
-# KEYWORDS (SAME AS FULL)
-# =================================================
+# ======================================
+# SOCIAL TRAIT KEYWORDS — SLANG EXPANDED
+# ======================================
 
 ENGAGING = {
     "hi","hey","heya","hiya","yo","sup","wb","welcome",
@@ -86,16 +86,66 @@ CURSE = {
     "omfg","holy shit"
 }
 
-# ======================================
-# NEGATORS / REVERSALS — SL STYLE
-# ======================================
+# =================================================
+# LITE SUMMARY PHRASES
+# =================================================
 
-NEGATORS = {
-    "not","no","never","dont","don't","cant","can't",
-    "isnt","isn't","wasnt","wasn't",
-    "aint","ain't","nah","nope","naw",
-    "idk","idc","dont care","doesnt matter"
+PRIMARY_PHRASE = {
+    "engaging": "Easily draws others into conversation",
+    "curious": "Shows interest in people nearby",
+    "humorous": "Brings light humor into chat",
+    "supportive": "Creates a comfortable social tone",
+    "dominant": "Naturally takes conversational lead",
+    "combative": "Expresses opinions strongly",
 }
+
+SECONDARY_PHRASE = {
+    "engaging": "keeps interactions moving",
+    "curious": "asks questions and observes",
+    "humorous": "adds playful moments",
+    "supportive": "smooths social flow",
+    "dominant": "directs conversations",
+    "combative": "pushes back when challenged",
+}
+
+LITE_MODIFIERS = [
+    "in a relaxed way",
+    "without overdoing it",
+    "when the moment fits",
+    "in casual situations",
+    "as conversations unfold",
+]
+
+# =================================================
+# ROOM VIBE (LITE)
+# =================================================
+
+ROOM_ACTIVITY = {
+    "quiet": "Mostly quiet with minimal chatter",
+    "low": "Light conversation happening",
+    "medium": "Steady social interaction",
+    "high": "Active and socially charged",
+}
+
+ROOM_DESCRIPTORS = [
+    "Easygoing and approachable",
+    "Calm with light engagement",
+    "Casual social atmosphere",
+    "Comfortable and low-pressure",
+    "Warm but not overwhelming",
+]
+
+# =================================================
+# NEARBY (LITE)
+# =================================================
+
+NEARBY_TAGS = [
+    "quiet presence",
+    "casual observer",
+    "socially aware",
+    "light conversational energy",
+    "active participant",
+]
 
 # =================================================
 # HELPERS
@@ -173,7 +223,6 @@ def build_profiles():
             "name": r.get("display_name", "Unknown"),
             "messages": 0,
             "traits": defaultdict(float),
-            "styles": defaultdict(float),
             "recent": 0
         })
 
@@ -184,12 +233,9 @@ def build_profiles():
             p["recent"] += msgs
 
         hits = extract_hits(r.get("context_sample", ""))
-
         for k,v in hits.items():
-            if k in ["engaging","curious","humorous","supportive","dominant","combative"]:
+            if k in PRIMARY_PHRASE:
                 p["traits"][k] += v * w
-            if k in ["flirty","sexual","curse"]:
-                p["styles"][k] += v * w
 
     out = []
 
@@ -197,13 +243,13 @@ def build_profiles():
         m = max(p["messages"],1)
         conf = min(1.0, math.log(m+1)/4)
 
+        traits = {k:(v/m) for k,v in p["traits"].items()}
         out.append({
             "avatar_uuid": p["avatar_uuid"],
             "name": p["name"],
             "confidence": int(conf*100),
             "recent": p["recent"],
-            "traits": {k:int((v/m)*100) for k,v in p["traits"].items()},
-            "styles": {k:int((v/m)*100) for k,v in p["styles"].items()}
+            "traits": traits
         })
 
     CACHE["profiles"] = out
@@ -211,50 +257,81 @@ def build_profiles():
     return out
 
 # =================================================
+# LITE SUMMARY ENGINE
+# =================================================
+
+def build_lite_summary(p):
+    if not p or not p["traits"]:
+        return "Limited data. Social patterns still forming."
+
+    ranked = sorted(p["traits"].items(), key=lambda x: x[1], reverse=True)
+    top = [k for k,v in ranked if v > 0][:2]
+
+    if not top:
+        return "Present, but not enough activity yet."
+
+    line = PRIMARY_PHRASE[top[0]]
+
+    if len(top) > 1:
+        line += ", " + SECONDARY_PHRASE[top[1]]
+
+    line += " " + random.choice(LITE_MODIFIERS) + "."
+
+    return line
+
+# =================================================
 # PRESENTATION (LITE)
 # =================================================
 
 def present_profile(p):
-    if not p:
-        return "👤 You:\nNo data yet."
-
     return (
         "━━━━━━━━━━━━━━━━━━━━\n"
-        "👤 YOU (LITE)\n"
+        "📊 MY PROFILE (LITE)\n"
         "━━━━━━━━━━━━━━━━━━━━\n"
-        f"Name: {p['name']}\n"
-        f"Confidence: {p['confidence']}%\n\n"
-        "Basic patterns detected.\n"
+        f"{p['name']}\n\n"
+        f"{build_lite_summary(p)}\n\n"
+        "🔓 Full version unlocks deep traits.\n"
         "━━━━━━━━━━━━━━━━━━━━"
     )
 
 def present_nearby(profiles):
     if not profiles:
-        return "👥 Nearby:\nNo one detected."
+        return "👥 Nearby: No one detected."
 
-    lines = ["━━━━━━━━━━━━━━━━━━━━","👥 NEARBY (LITE)","━━━━━━━━━━━━━━━━━━━━"]
-    for p in profiles[:5]:
-        lines.append(f"• {p['name']} ({p['confidence']}%)")
+    lines = [
+        "━━━━━━━━━━━━━━━━━━━━",
+        "👥 NEARBY (LITE)",
+        "━━━━━━━━━━━━━━━━━━━━"
+    ]
+
+    for p in profiles[:6]:
+        lines.append(f"• {p['name']} — {random.choice(NEARBY_TAGS)}")
+
+    lines.append("")
+    lines.append("🔍 Click a name to preview.")
     lines.append("━━━━━━━━━━━━━━━━━━━━")
+
     return "\n".join(lines)
 
 def build_room_vibe(profiles):
-    if not profiles:
-        return "🧠 Room Vibe:\nQuiet"
+    recent = sum(1 for p in profiles if p["recent"] > 0)
 
-    active = sum(1 for p in profiles if p["recent"] > 0)
-    if active >= 5:
-        vibe = "Active"
-    elif active >= 2:
-        vibe = "Warming up"
+    if recent == 0:
+        level = "quiet"
+    elif recent < 3:
+        level = "low"
+    elif recent < 6:
+        level = "medium"
     else:
-        vibe = "Calm"
+        level = "high"
 
     return (
         "━━━━━━━━━━━━━━━━━━━━\n"
-        "🧠 ROOM VIBE\n"
+        "🌙 ROOM VIBE (LITE)\n"
         "━━━━━━━━━━━━━━━━━━━━\n"
-        f"Live energy: {vibe}\n"
+        f"{ROOM_ACTIVITY[level]}.\n"
+        f"{random.choice(ROOM_DESCRIPTORS)}.\n\n"
+        "🔓 Full version shows live shifts.\n"
         "━━━━━━━━━━━━━━━━━━━━"
     )
 
@@ -262,77 +339,34 @@ def build_room_vibe(profiles):
 # ENDPOINTS
 # =================================================
 
-@app.route("/hud/scan", methods=["POST"])
-def hud_scan():
-    data = request.get_json(silent=True) or {}
-    uuid = data.get("uuid")
-
-    profiles = build_profiles()
-    me = next((p for p in profiles if p["avatar_uuid"] == uuid), None)
-    nearby = [p for p in profiles if p["avatar_uuid"] != uuid]
-
-    room = build_room_vibe(nearby + ([me] if me else []))
-
-    text = "\n\n".join([
-        room,
-        present_profile(me),
-        present_nearby(nearby),
-        "ℹ Detail improves as more residents participate."
-    ])
-
-    return Response(
-        json.dumps({"text": text}, ensure_ascii=False),
-        mimetype="application/json; charset=utf-8"
-    )
-
 @app.route("/profile/self", methods=["POST"])
 def profile_self():
     data = request.get_json(silent=True) or {}
     uuid = data.get("uuid")
 
-    if not uuid:
-        return jsonify({"error": "missing uuid"}), 400
+    profiles = build_profiles()
+    me = next((p for p in profiles if p["avatar_uuid"] == uuid), None)
 
-    # LITE summary
-    text = (
-    "My Profile (Lite)\n"
-    "- Social vibe: Balanced\n"
-    "- Engagement: Medium\n"
-    "- Data sample: Limited\n\n"
-    "Upgrade to unlock full analytics."
-)
-    return jsonify({"text": text})
+    return jsonify({"text": present_profile(me)})
 
 @app.route("/profile/lookup", methods=["POST"])
 def profile_lookup():
     data = request.get_json(silent=True) or {}
     name = data.get("name")
 
-    if not name:
-        return jsonify({"error": "missing name"}), 400
-
-    text = (
-    f"{name} (Lite)\n"
-    "- First impression: Neutral\n"
-    "- Social energy: Moderate\n\n"
-    "Upgrade to see deep traits."
-)
-
-
-    return jsonify({"text": text})
+    return jsonify({
+        "text": (
+            f"📍 {name} (Lite)\n\n"
+            "Social energy detected.\n"
+            "General engagement present.\n\n"
+            "🔓 Full version reveals compatibility."
+        )
+    })
 
 @app.route("/room/vibe", methods=["POST"])
 def room_vibe():
-    text = (
-    "Room Vibe (Lite)\n"
-    "- Activity: Moderate\n"
-    "- Energy: Mixed\n"
-    "- Chat flow: Stable\n\n"
-    "Full version shows live analytics."
-)
-
-    return jsonify({"text": text})
-
+    profiles = build_profiles()
+    return jsonify({"text": build_room_vibe(profiles)})
 
 @app.route("/")
 def ok():
