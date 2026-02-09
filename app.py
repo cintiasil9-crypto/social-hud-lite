@@ -1,5 +1,5 @@
 from flask import Flask, Response, jsonify, request
-import os, time, math, requests, json, re, random
+import os, time, math, requests, json, re
 from collections import defaultdict
 
 # =================================================
@@ -13,138 +13,59 @@ CACHE = {"profiles": None, "ts": 0}
 CACHE_TTL = 300
 NOW = time.time()
 
-# ======================================
-# SOCIAL TRAIT KEYWORDS — SLANG EXPANDED
-# ======================================
+# =================================================
+# NEGATORS (FIXED – WAS CAUSING 500)
+# =================================================
 
-ENGAGING = {
-    "hi","hey","heya","hiya","yo","sup","wb","welcome",
-    "hello","ello","hai","haiii","hii","hiii",
-    "o/","\\o","wave","waves","*waves*","*wave*",
-    "heyhey","yo yo","sup all","hiya all"
-}
-
-CURIOUS = {
-    "why","how","what","where","when","who",
-    "anyone","anybody","any1","any1?",
-    "curious","wonder","wondering",
-    "?","??","???","????",
-    "huh","eh","hm","hmm","hmmm"
-}
-
-HUMOR = {
-    "lol","lmao","lmfao","rofl","roflmao",
-    "haha","hehe","heh","bahaha",
-    "😂","🤣","😆","😜","😹","💀","😭",
-    "lawl","lul","lel","ded","im dead","dead 💀"
-}
-
-SUPPORT = {
-    "sorry","sry","srry","soz",
-    "hope","ok","okay","k","kk","mk",
-    "there","here","np","nps","no worries",
-    "hug","hugs","hugz","*hug*","*hugs*",
-    "<3","❤️","💜","💙","💖",
-    "u ok","you ok","all good","its ok","it's ok"
-}
-
-DOMINANT = {
-    "listen","look","stop","wait","now",
-    "do it","dont","don't","come here","stay",
-    "pay attention","focus","enough",
-    "move","sit","stand","follow","watch","hold up"
-}
-
-COMBATIVE = {
-    "idiot","stupid","dumb","moron","retard",
-    "shut","shut up","stfu","gtfo","wtf","tf",
-    "screw you","fuck off",
-    "trash","garbage","bs","bullshit","smh",
-}
-
-# ======================================
-# STYLE / TONE — SLANG EXPANDED
-# ======================================
-
-FLIRTY = {
-    "cute","cutie","qt","hot","handsome","beautiful","pretty",
-    "sexy","kiss","kisses","xoxo","mwah","😘","😍","😉","😏",
-    "flirt","tease","teasing",
-    "hey you","hey sexy","hey cutie","damn u cute","babe","baby","sweety"
-}
-
-SEXUAL = {
-    "sex","fuck","fucking","horny","wet","hard","naked",
-    "dick","cock","pussy","boobs","tits","ass","booty",
-    "cum","cumming","breed","breedable",
-    "thrust","ride","mount","spread","bed","moan","mm","mmm"
-}
-
-CURSE = {
-    "fuck","fucking","shit","damn","bitch","asshole",
-    "crap","hell","pissed","wtf","ffs","af","asf",
-    "omfg","holy shit"
+NEGATORS = {
+    "not","no","never","dont","don't","cant","can't",
+    "isnt","isn't","wasnt","wasn't",
+    "aint","ain't","nah","nope","naw",
+    "idk","idc","dont care","doesnt matter"
 }
 
 # =================================================
-# LITE SUMMARY PHRASES
+# KEYWORDS
 # =================================================
 
-PRIMARY_PHRASE = {
-    "engaging": "Easily draws others into conversation",
-    "curious": "Shows interest in people nearby",
-    "humorous": "Brings light humor into chat",
-    "supportive": "Creates a comfortable social tone",
-    "dominant": "Naturally takes conversational lead",
-    "combative": "Expresses opinions strongly",
+ENGAGING = {"hi","hey","hello","yo","sup","welcome","hiya"}
+CURIOUS  = {"why","how","what","where","when","who","?"}
+HUMOR    = {"lol","lmao","haha","😂","🤣","😆"}
+SUPPORT  = {"sorry","hope","ok","hug","hugs","<3"}
+DOMINANT = {"listen","stop","wait","now","do it"}
+COMBATIVE= {"stfu","wtf","idiot","shut","fuck"}
+
+FLIRTY   = {"cute","hot","sexy","kiss","mwah","😘","😍"}
+SEXUAL   = {"sex","horny","naked","fuck"}
+CURSE    = {"fuck","shit","damn","wtf"}
+
+# =================================================
+# SUMMARY PHRASES (LITE)
+# =================================================
+
+PROFILE_PHRASES = {
+    "engaging": "Naturally pulls people into conversation",
+    "curious": "Pays attention to who’s around",
+    "humorous": "Keeps things light and playful",
+    "supportive": "Creates emotional safety",
+    "dominant": "Takes social initiative",
+    "combative": "Pushes back when challenged"
 }
 
-SECONDARY_PHRASE = {
-    "engaging": "keeps interactions moving",
-    "curious": "asks questions and observes",
-    "humorous": "adds playful moments",
-    "supportive": "smooths social flow",
-    "dominant": "directs conversations",
-    "combative": "pushes back when challenged",
-}
-
-LITE_MODIFIERS = [
-    "in a relaxed way",
-    "without overdoing it",
-    "when the moment fits",
-    "in casual situations",
-    "as conversations unfold",
+ROOM_VIBES = [
+    "Calm, low-pressure energy",
+    "Light social buzz",
+    "Conversation-friendly",
+    "Mixed personalities, steady flow",
+    "Active but not chaotic"
 ]
 
-# =================================================
-# ROOM VIBE (LITE)
-# =================================================
-
-ROOM_ACTIVITY = {
-    "quiet": "Mostly quiet with minimal chatter",
-    "low": "Light conversation happening",
-    "medium": "Steady social interaction",
-    "high": "Active and socially charged",
-}
-
-ROOM_DESCRIPTORS = [
-    "Easygoing and approachable",
-    "Calm with light engagement",
-    "Casual social atmosphere",
-    "Comfortable and low-pressure",
-    "Warm but not overwhelming",
-]
-
-# =================================================
-# NEARBY (LITE)
-# =================================================
-
-NEARBY_TAGS = [
-    "quiet presence",
-    "casual observer",
-    "socially aware",
-    "light conversational energy",
-    "active participant",
+NEARBY_TAKES = [
+    "A few different personalities nearby",
+    "Small group energy forming",
+    "People are watching before engaging",
+    "Low noise, open vibe",
+    "Social mix looks approachable"
 ]
 
 # =================================================
@@ -219,7 +140,7 @@ def build_profiles():
         w = decay(ts)
 
         p = profiles.setdefault(uid, {
-            "avatar_uuid": uid,
+            "uuid": uid,
             "name": r.get("display_name", "Unknown"),
             "messages": 0,
             "traits": defaultdict(float),
@@ -228,28 +149,26 @@ def build_profiles():
 
         msgs = max(int(r.get("messages", 1)), 1)
         p["messages"] += msgs * w
-
         if NOW - ts < 3600:
             p["recent"] += msgs
 
         hits = extract_hits(r.get("context_sample", ""))
         for k,v in hits.items():
-            if k in PRIMARY_PHRASE:
-                p["traits"][k] += v * w
+            p["traits"][k] += v * w
 
     out = []
-
     for p in profiles.values():
         m = max(p["messages"],1)
         conf = min(1.0, math.log(m+1)/4)
 
-        traits = {k:(v/m) for k,v in p["traits"].items()}
+        top_trait = max(p["traits"], key=p["traits"].get, default=None)
+
         out.append({
-            "avatar_uuid": p["avatar_uuid"],
+            "uuid": p["uuid"],
             "name": p["name"],
             "confidence": int(conf*100),
             "recent": p["recent"],
-            "traits": traits
+            "top_trait": top_trait
         })
 
     CACHE["profiles"] = out
@@ -257,82 +176,44 @@ def build_profiles():
     return out
 
 # =================================================
-# LITE SUMMARY ENGINE
-# =================================================
-
-def build_lite_summary(p):
-    if not p or not p["traits"]:
-        return "Limited data. Social patterns still forming."
-
-    ranked = sorted(p["traits"].items(), key=lambda x: x[1], reverse=True)
-    top = [k for k,v in ranked if v > 0][:2]
-
-    if not top:
-        return "Present, but not enough activity yet."
-
-    line = PRIMARY_PHRASE[top[0]]
-
-    if len(top) > 1:
-        line += ", " + SECONDARY_PHRASE[top[1]]
-
-    line += " " + random.choice(LITE_MODIFIERS) + "."
-
-    return line
-
-# =================================================
-# PRESENTATION (LITE)
+# PRESENTATION (LITE – DYNAMIC)
 # =================================================
 
 def present_profile(p):
+    if not p:
+        return "No profile data yet.\nMore activity sharpens the read."
+
+    line = PROFILE_PHRASES.get(p["top_trait"], "Social patterns still forming")
+
     return (
-        "━━━━━━━━━━━━━━━━━━━━\n"
-        "📊 MY PROFILE (LITE)\n"
-        "━━━━━━━━━━━━━━━━━━━━\n"
-        f"{p['name']}\n\n"
-        f"{build_lite_summary(p)}\n\n"
-        "🔓 Full version unlocks deep traits.\n"
-        "━━━━━━━━━━━━━━━━━━━━"
+        "My Profile (Lite)\n"
+        f"• Social read: {line}\n"
+        f"• Confidence signal: {p['confidence']}%\n\n"
+        "Upgrade unlocks full trait breakdown."
     )
 
 def present_nearby(profiles):
     if not profiles:
-        return "👥 Nearby: No one detected."
+        return "Nearby (Lite)\n• No readable activity yet."
 
-    lines = [
-        "━━━━━━━━━━━━━━━━━━━━",
-        "👥 NEARBY (LITE)",
-        "━━━━━━━━━━━━━━━━━━━━"
-    ]
+    vibe = NEARBY_TAKES[len(profiles) % len(NEARBY_TAKES)]
 
-    for p in profiles[:6]:
-        lines.append(f"• {p['name']} — {random.choice(NEARBY_TAGS)}")
-
-    lines.append("")
-    lines.append("🔍 Click a name to preview.")
-    lines.append("━━━━━━━━━━━━━━━━━━━━")
-
-    return "\n".join(lines)
-
-def build_room_vibe(profiles):
-    recent = sum(1 for p in profiles if p["recent"] > 0)
-
-    if recent == 0:
-        level = "quiet"
-    elif recent < 3:
-        level = "low"
-    elif recent < 6:
-        level = "medium"
-    else:
-        level = "high"
+    names = ", ".join(p["name"] for p in profiles[:3])
 
     return (
-        "━━━━━━━━━━━━━━━━━━━━\n"
-        "🌙 ROOM VIBE (LITE)\n"
-        "━━━━━━━━━━━━━━━━━━━━\n"
-        f"{ROOM_ACTIVITY[level]}.\n"
-        f"{random.choice(ROOM_DESCRIPTORS)}.\n\n"
-        "🔓 Full version shows live shifts.\n"
-        "━━━━━━━━━━━━━━━━━━━━"
+        "Nearby (Lite)\n"
+        f"• {vibe}\n"
+        f"• Notable nearby: {names}\n\n"
+        "Tap a name for a quick read."
+    )
+
+def present_room_vibe(profiles):
+    vibe = ROOM_VIBES[len(profiles) % len(ROOM_VIBES)]
+
+    return (
+        "Room Vibe (Lite)\n"
+        f"• {vibe}\n\n"
+        "Full version shows live analytics."
     )
 
 # =================================================
@@ -341,32 +222,22 @@ def build_room_vibe(profiles):
 
 @app.route("/profile/self", methods=["POST"])
 def profile_self():
-    data = request.get_json(silent=True) or {}
-    uuid = data.get("uuid")
-
+    uuid = (request.get_json(silent=True) or {}).get("uuid")
     profiles = build_profiles()
-    me = next((p for p in profiles if p["avatar_uuid"] == uuid), None)
-
+    me = next((p for p in profiles if p["uuid"] == uuid), None)
     return jsonify({"text": present_profile(me)})
 
 @app.route("/profile/lookup", methods=["POST"])
 def profile_lookup():
-    data = request.get_json(silent=True) or {}
-    name = data.get("name")
-
-    return jsonify({
-        "text": (
-            f"📍 {name} (Lite)\n\n"
-            "Social energy detected.\n"
-            "General engagement present.\n\n"
-            "🔓 Full version reveals compatibility."
-        )
-    })
+    name = (request.get_json(silent=True) or {}).get("name")
+    profiles = build_profiles()
+    p = next((p for p in profiles if p["name"] == name), None)
+    return jsonify({"text": present_profile(p)})
 
 @app.route("/room/vibe", methods=["POST"])
 def room_vibe():
     profiles = build_profiles()
-    return jsonify({"text": build_room_vibe(profiles)})
+    return jsonify({"text": present_room_vibe(profiles)})
 
 @app.route("/")
 def ok():
