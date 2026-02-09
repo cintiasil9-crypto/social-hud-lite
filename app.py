@@ -298,7 +298,7 @@ def profile_self():
 def profile_lookup():
     name = (request.get_json(silent=True) or {}).get("name")
     for p in build_profiles():
-        if p["name"] == name:
+        if p["name"].strip().lower() == name.strip().lower():
             return Response(json.dumps({"text": lite_profile(p)}, ensure_ascii=False),
                             mimetype="application/json; charset=utf-8")
     return jsonify({"error":"profile not found"}),404
