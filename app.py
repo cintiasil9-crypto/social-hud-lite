@@ -14,59 +14,85 @@ CACHE_TTL = 300
 NOW = time.time()
 
 # =================================================
-# NEGATORS (FIXED – WAS CAUSING 500)
+# WEIGHTS (SAME AS FULL)
 # =================================================
 
-NEGATORS = {
-    "not","no","never","dont","don't","cant","can't",
-    "isnt","isn't","wasnt","wasn't",
-    "aint","ain't","nah","nope","naw",
-    "idk","idc","dont care","doesnt matter"
+TRAIT_WEIGHTS = {
+    "engaging":   1.0,
+    "curious":    0.9,
+    "humorous":   1.2,
+    "supportive": 1.1,
+    "dominant":   1.0,
+    "combative":  1.4,
+}
+
+STYLE_WEIGHTS = {
+    "flirty": 1.0,
+    "sexual": 1.2,
+    "curse":  0.9
 }
 
 # =================================================
-# KEYWORDS
+# KEYWORDS (FULL PARITY)
 # =================================================
 
-ENGAGING = {"hi","hey","hello","yo","sup","welcome","hiya"}
-CURIOUS  = {"why","how","what","where","when","who","?"}
-HUMOR    = {"lol","lmao","haha","😂","🤣","😆"}
-SUPPORT  = {"sorry","hope","ok","hug","hugs","<3"}
-DOMINANT = {"listen","stop","wait","now","do it"}
-COMBATIVE= {"stfu","wtf","idiot","shut","fuck"}
+ENGAGING = {"hi","hey","heya","hiya","yo","sup","wb","welcome","hello","ello","hai","hii","o/","\\o","wave","waves"}
+CURIOUS  = {"why","how","what","where","when","who","anyone","anybody","?","??","huh","hmm"}
+HUMOR    = {"lol","lmao","rofl","haha","😂","🤣","😆","💀"}
+SUPPORT  = {"sorry","hope","ok","okay","np","hug","hugs","<3","❤️"}
+DOMINANT = {"listen","look","stop","wait","now","do it","move","sit","stand"}
+COMBATIVE= {"idiot","stupid","dumb","shut","stfu","wtf","bs"}
 
-FLIRTY   = {"cute","hot","sexy","kiss","mwah","😘","😍"}
-SEXUAL   = {"sex","horny","naked","fuck"}
-CURSE    = {"fuck","shit","damn","wtf"}
+FLIRTY   = {"cute","hot","pretty","handsome","sexy","kiss","mwah","😘","😉"}
+SEXUAL   = {"sex","fuck","horny","naked","hard","wet"}
+CURSE    = {"fuck","shit","damn","bitch","asshole"}
+
+NEGATORS = {"not","no","never","dont","don't","cant","can't","nah","nope","aint"}
 
 # =================================================
-# SUMMARY PHRASES (LITE)
+# SUMMARY PHRASES (FULL COPY)
 # =================================================
 
-PROFILE_PHRASES = {
+PRIMARY_PHRASE = {
     "engaging": "Naturally pulls people into conversation",
-    "curious": "Pays attention to who’s around",
-    "humorous": "Keeps things light and playful",
+    "curious": "Actively curious about who’s around",
+    "humorous": "Shows up to entertain",
     "supportive": "Creates emotional safety",
-    "dominant": "Takes social initiative",
-    "combative": "Pushes back when challenged"
+    "dominant": "Carries main-character energy",
+    "combative": "Thrives on strong opinions",
 }
 
-ROOM_VIBES = [
-    "Calm, low-pressure energy",
-    "Light social buzz",
-    "Conversation-friendly",
-    "Mixed personalities, steady flow",
-    "Active but not chaotic"
-]
+SECONDARY_PHRASE = {
+    "engaging": "keeps interactions flowing",
+    "curious": "asks thoughtful questions",
+    "humorous": "keeps things playful",
+    "supportive": "softens heavy moments",
+    "dominant": "steers conversations",
+    "combative": "pushes back when challenged",
+}
 
-NEARBY_TAKES = [
-    "A few different personalities nearby",
-    "Small group energy forming",
-    "People are watching before engaging",
-    "Low noise, open vibe",
-    "Social mix looks approachable"
-]
+TERTIARY_PHRASE = {
+    "engaging": "without forcing attention",
+    "curious": "while quietly observing",
+    "humorous": "often with a playful edge",
+    "supportive": "in a grounding way",
+    "dominant": "with subtle authority",
+    "combative": "with occasional friction",
+}
+
+MODIFIER_PHRASE = {
+    ("curious","flirty"): "with light romantic curiosity",
+    ("humorous","flirty"): "through playful flirtation",
+    ("supportive","flirty"): "with warm, gentle flirtation",
+    ("dominant","flirty"): "with confident flirtation",
+    ("curious","sexual"): "with adult curiosity",
+    ("supportive","sexual"): "with emotional intimacy and adult undertones",
+    ("dominant","sexual"): "with bold, adult energy",
+    ("humorous","sexual"): "using shock humor",
+    ("humorous","curse"): "with crude humor",
+    ("dominant","curse"): "in a forceful, unfiltered way",
+    ("supportive","curse"): "in a familiar, casual tone",
+}
 
 # =================================================
 # HELPERS
@@ -121,7 +147,38 @@ def fetch_rows():
     return rows
 
 # =================================================
-# BUILD PROFILES (LITE)
+# SUMMARY ENGINE (UNCHANGED)
+# =================================================
+
+def build_summary(conf, traits, styles):
+    if conf < 0.25:
+        return "Barely spoke. Vibes pending."
+
+    ranked = sorted(traits.items(), key=lambda x:x[1], reverse=True)
+    top = [k for k,v in ranked if v > 0][:3]
+
+    if not top:
+        return "Present, but patterns are still forming."
+
+    if len(top) == 1:
+        return PRIMARY_PHRASE[top[0]] + ". This trait stands out strongly, but there isn’t enough data yet to assess other aspects."
+
+    base = ", ".join([
+        PRIMARY_PHRASE[top[0]],
+        SECONDARY_PHRASE[top[1]],
+        TERTIARY_PHRASE[top[2]] if len(top) > 2 else ""
+    ]).strip(", ") + "."
+
+    for m in ["sexual","flirty","curse"]:
+        if styles.get(m,0) >= 0.2 and conf >= 0.35:
+            phrase = MODIFIER_PHRASE.get((top[0], m))
+            if phrase:
+                return base + " " + phrase + "."
+
+    return base
+
+# =================================================
+# BUILD PROFILES (FULL LOGIC, LITE USE)
 # =================================================
 
 def build_profiles():
@@ -133,42 +190,51 @@ def build_profiles():
 
     for r in rows:
         uid = r.get("avatar_uuid")
-        if not uid:
-            continue
+        if not uid: continue
 
         ts = float(r.get("timestamp", NOW))
         w = decay(ts)
 
         p = profiles.setdefault(uid, {
-            "uuid": uid,
-            "name": r.get("display_name", "Unknown"),
+            "avatar_uuid": uid,
+            "name": r.get("display_name","Unknown"),
             "messages": 0,
-            "traits": defaultdict(float),
+            "raw_traits": defaultdict(float),
+            "raw_styles": defaultdict(float),
             "recent": 0
         })
 
-        msgs = max(int(r.get("messages", 1)), 1)
+        msgs = max(int(r.get("messages",1)),1)
         p["messages"] += msgs * w
         if NOW - ts < 3600:
             p["recent"] += msgs
 
-        hits = extract_hits(r.get("context_sample", ""))
+        hits = extract_hits(r.get("context_sample",""))
+
         for k,v in hits.items():
-            p["traits"][k] += v * w
+            if k in TRAIT_WEIGHTS:
+                p["raw_traits"][k] += v * TRAIT_WEIGHTS[k] * w
+            if k in STYLE_WEIGHTS:
+                p["raw_styles"][k] += v * STYLE_WEIGHTS[k] * w
 
     out = []
+
     for p in profiles.values():
         m = max(p["messages"],1)
         conf = min(1.0, math.log(m+1)/4)
+        damp = max(0.05, conf ** 1.5)
 
-        top_trait = max(p["traits"], key=p["traits"].get, default=None)
+        traits = {k:min((p["raw_traits"][k]/m)*damp,1.0) for k in TRAIT_WEIGHTS}
+        styles = {k:min((p["raw_styles"][k]/(m*0.3))*damp,1.0) for k in STYLE_WEIGHTS}
 
         out.append({
-            "uuid": p["uuid"],
+            "avatar_uuid": p["avatar_uuid"],
             "name": p["name"],
             "confidence": int(conf*100),
             "recent": p["recent"],
-            "top_trait": top_trait
+            "traits": traits,
+            "styles": styles,
+            "summary": build_summary(conf, traits, styles)
         })
 
     CACHE["profiles"] = out
@@ -176,68 +242,81 @@ def build_profiles():
     return out
 
 # =================================================
-# PRESENTATION (LITE – DYNAMIC)
+# LITE PRESENTATION
 # =================================================
 
-def present_profile(p):
-    if not p:
-        return "No profile data yet.\nMore activity sharpens the read."
+def conf_label(c):
+    if c >= 70: return "Strong presence"
+    if c >= 40: return "Steady presence"
+    return "Emerging presence"
 
-    line = PROFILE_PHRASES.get(p["top_trait"], "Social patterns still forming")
-
+def lite_profile(p):
     return (
-        "My Profile (Lite)\n"
-        f"• Social read: {line}\n"
-        f"• Confidence signal: {p['confidence']}%\n\n"
-        "Upgrade unlocks full trait breakdown."
+        "🧠 My Profile (Lite)\n"
+        "━━━━━━━━━━━━━━━━━━━━\n"
+        f"👤 {p['name']}\n"
+        f"✨ {conf_label(p['confidence'])}\n\n"
+        "🔍 Social read:\n"
+        f"{p['summary']}\n\n"
+        "🔓 Upgrade to unlock full analytics."
     )
 
-def present_nearby(profiles):
-    if not profiles:
-        return "Nearby (Lite)\n• No readable activity yet."
+def lite_nearby(profiles):
+    lines = [
+        "👥 Nearby (Lite)",
+        "━━━━━━━━━━━━━━━━━━━━"
+    ]
+    for p in profiles[:6]:
+        lines.append(f"• {p['name']} — {conf_label(p['confidence'])}")
+    lines.append("\nTap a name to view profile.")
+    return "\n".join(lines)
 
-    vibe = NEARBY_TAKES[len(profiles) % len(NEARBY_TAKES)]
-
-    names = ", ".join(p["name"] for p in profiles[:3])
-
+def lite_room_vibe(profiles):
+    active = sum(1 for p in profiles if p["recent"] > 0)
+    vibe = "Active" if active >= 4 else "Warming up" if active >= 2 else "Calm"
     return (
-        "Nearby (Lite)\n"
-        f"• {vibe}\n"
-        f"• Notable nearby: {names}\n\n"
-        "Tap a name for a quick read."
-    )
-
-def present_room_vibe(profiles):
-    vibe = ROOM_VIBES[len(profiles) % len(ROOM_VIBES)]
-
-    return (
-        "Room Vibe (Lite)\n"
-        f"• {vibe}\n\n"
-        "Full version shows live analytics."
+        "🌙 Room Vibe (Lite)\n"
+        "━━━━━━━━━━━━━━━━━━━━\n"
+        f"🎭 Overall energy: {vibe}\n\n"
+        "Easy room to step into."
     )
 
 # =================================================
-# ENDPOINTS
+# ENDPOINTS (LITE)
 # =================================================
 
 @app.route("/profile/self", methods=["POST"])
 def profile_self():
     uuid = (request.get_json(silent=True) or {}).get("uuid")
-    profiles = build_profiles()
-    me = next((p for p in profiles if p["uuid"] == uuid), None)
-    return jsonify({"text": present_profile(me)})
+    for p in build_profiles():
+        if p["avatar_uuid"] == uuid:
+            return Response(json.dumps({"text": lite_profile(p)}, ensure_ascii=False),
+                            mimetype="application/json; charset=utf-8")
+    return jsonify({"error":"profile not found"}),404
 
 @app.route("/profile/lookup", methods=["POST"])
 def profile_lookup():
     name = (request.get_json(silent=True) or {}).get("name")
-    profiles = build_profiles()
-    p = next((p for p in profiles if p["name"] == name), None)
-    return jsonify({"text": present_profile(p)})
+    for p in build_profiles():
+        if p["name"] == name:
+            return Response(json.dumps({"text": lite_profile(p)}, ensure_ascii=False),
+                            mimetype="application/json; charset=utf-8")
+    return jsonify({"error":"profile not found"}),404
 
 @app.route("/room/vibe", methods=["POST"])
 def room_vibe():
-    profiles = build_profiles()
-    return jsonify({"text": present_room_vibe(profiles)})
+    uuids = set((request.get_json(silent=True) or {}).get("uuids", []))
+    profiles = [p for p in build_profiles() if p["avatar_uuid"] in uuids]
+    return Response(json.dumps({"text": lite_room_vibe(profiles)}, ensure_ascii=False),
+                    mimetype="application/json; charset=utf-8")
+
+@app.route("/profiles/available", methods=["POST"])
+def profiles_available():
+    uuids = set((request.get_json(silent=True) or {}).get("uuids", []))
+    return Response(json.dumps(
+        [{"name":p["name"],"uuid":p["avatar_uuid"]} for p in build_profiles() if p["avatar_uuid"] in uuids],
+        ensure_ascii=False),
+        mimetype="application/json; charset=utf-8")
 
 @app.route("/")
 def ok():
