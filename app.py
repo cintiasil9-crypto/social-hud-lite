@@ -13,6 +13,14 @@ CACHE = {"profiles": None, "ts": 0}
 CACHE_TTL = 300
 NOW = time.time()
 
+# =========================
+# PROFILE INDEXES (GLOBAL)
+# =========================
+
+profiles_by_name = {}
+profiles_by_uuid = {}
+
+
 # =================================================
 # WEIGHTS (SAME AS FULL)
 # =================================================
@@ -182,6 +190,7 @@ def build_summary(conf, traits, styles):
 # =================================================
 
 def build_profiles():
+    global profiles_by_uuid, profiles_by_name
     if CACHE["profiles"] and time.time() - CACHE["ts"] < CACHE_TTL:
         return CACHE["profiles"]
 
@@ -240,7 +249,24 @@ def build_profiles():
     CACHE["profiles"] = out
     CACHE["ts"] = time.time()
     return out
+    
+ # ================================
+    # 🔑 BUILD LOOKUP INDEXES (NEW)
+    # ================================
+    profiles_by_uuid.clear()
+    profiles_by_name.clear()
 
+    for uid, p in profiles.items():
+        profiles_by_uuid[uid] = p
+
+        name = p.get("name")
+        if name:
+            profiles_by_name[name.lower()] = p
+
+    CACHE["profiles"] = profiles
+    CACHE["ts"] = time.time()
+    return profiles
+    
 # =================================================
 # LITE PRESENTATION
 # =================================================
@@ -303,18 +329,22 @@ def profile_lookup():
 
     profile = None
 
+    # --- UUID FIRST ---
     if uuid:
         profile = profiles_by_uuid.get(uuid)
 
+    # --- FALLBACK TO NAME ---
     if not profile and name:
         profile = profiles_by_name.get(name.lower())
 
     if not profile:
-        return jsonify({"text": "No profile data yet."}), 200
+        return jsonify({
+            "text": "No profile data yet."
+        }), 200
 
     return jsonify({
-        "avatar_uuid": profile["uuid"],
-        "text": profile["pretty_text"]
+        "avatar_uuid": profile.get("avatar_uuid"),
+        "text": profile.get("pretty_text")
     }), 200
 
 @app.route("/room/vibe", methods=["POST"])
