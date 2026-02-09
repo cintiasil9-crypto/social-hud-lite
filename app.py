@@ -296,12 +296,26 @@ def profile_self():
 
 @app.route("/profile/lookup", methods=["POST"])
 def profile_lookup():
-    name = (request.get_json(silent=True) or {}).get("name")
-    for p in build_profiles():
-        if p["name"].strip().lower() == name.strip().lower():
-            return Response(json.dumps({"text": lite_profile(p)}, ensure_ascii=False),
-                            mimetype="application/json; charset=utf-8")
-    return jsonify({"error":"profile not found"}),404
+    data = request.get_json(silent=True) or {}
+
+    uuid = data.get("uuid")
+    name = data.get("name")
+
+    profile = None
+
+    if uuid:
+        profile = profiles_by_uuid.get(uuid)
+
+    if not profile and name:
+        profile = profiles_by_name.get(name.lower())
+
+    if not profile:
+        return jsonify({"text": "No profile data yet."}), 200
+
+    return jsonify({
+        "avatar_uuid": profile["uuid"],
+        "text": profile["pretty_text"]
+    }), 200
 
 @app.route("/room/vibe", methods=["POST"])
 def room_vibe():
