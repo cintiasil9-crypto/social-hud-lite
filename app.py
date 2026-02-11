@@ -185,12 +185,9 @@ def build_summary(conf, traits, styles):
 
     return base
 
-# =================================================
-# BUILD PROFILES (FULL LOGIC, LITE USE)
-# =================================================
-
 def build_profiles():
     global profiles_by_uuid, profiles_by_name
+
     if CACHE["profiles"] and time.time() - CACHE["ts"] < CACHE_TTL:
         return CACHE["profiles"]
 
@@ -199,28 +196,29 @@ def build_profiles():
 
     for r in rows:
         uid = r.get("avatar_uuid")
-        if not uid: continue
+        if not uid:
+            continue
 
         ts = float(r.get("timestamp", NOW))
         w = decay(ts)
 
         p = profiles.setdefault(uid, {
             "avatar_uuid": uid,
-            "name": r.get("display_name","Unknown"),
+            "name": r.get("display_name", "Unknown"),
             "messages": 0,
             "raw_traits": defaultdict(float),
             "raw_styles": defaultdict(float),
             "recent": 0
         })
 
-        msgs = max(int(r.get("messages",1)),1)
+        msgs = max(int(r.get("messages", 1)), 1)
         p["messages"] += msgs * w
         if NOW - ts < 3600:
             p["recent"] += msgs
 
-        hits = extract_hits(r.get("context_sample",""))
+        hits = extract_hits(r.get("context_sample", ""))
 
-        for k,v in hits.items():
+        for k, v in hits.items():
             if k in TRAIT_WEIGHTS:
                 p["raw_traits"][k] += v * TRAIT_WEIGHTS[k] * w
             if k in STYLE_WEIGHTS:
@@ -229,44 +227,36 @@ def build_profiles():
     out = []
 
     for p in profiles.values():
-        m = max(p["messages"],1)
-        conf = min(1.0, math.log(m+1)/4)
+        m = max(p["messages"], 1)
+        conf = min(1.0, math.log(m + 1) / 4)
         damp = max(0.05, conf ** 1.5)
 
-        traits = {k:min((p["raw_traits"][k]/m)*damp,1.0) for k in TRAIT_WEIGHTS}
-        styles = {k:min((p["raw_styles"][k]/(m*0.3))*damp,1.0) for k in STYLE_WEIGHTS}
+        traits = {k: min((p["raw_traits"][k] / m) * damp, 1.0) for k in TRAIT_WEIGHTS}
+        styles = {k: min((p["raw_styles"][k] / (m * 0.3)) * damp, 1.0) for k in STYLE_WEIGHTS}
 
         out.append({
             "avatar_uuid": p["avatar_uuid"],
             "name": p["name"],
-            "confidence": int(conf*100),
+            "confidence": int(conf * 100),
             "recent": p["recent"],
             "traits": traits,
             "styles": styles,
             "summary": build_summary(conf, traits, styles)
         })
 
-    CACHE["profiles"] = out
-    CACHE["ts"] = time.time()
-    return out
-    
- # ================================
-    # 🔑 BUILD LOOKUP INDEXES (NEW)
-    # ================================
+    # ✅ BUILD LOOKUP INDEXES (THIS WAS NEVER RUNNING)
     profiles_by_uuid.clear()
     profiles_by_name.clear()
 
-    for uid, p in profiles.items():
-        profiles_by_uuid[uid] = p
+    for p in out:
+        profiles_by_uuid[p["avatar_uuid"]] = p
+        profiles_by_name[p["name"].lower()] = p
 
-        name = p.get("name")
-        if name:
-            profiles_by_name[name.lower()] = p
-
-    CACHE["profiles"] = profiles
+    CACHE["profiles"] = out
     CACHE["ts"] = time.time()
-    return profiles
-    
+    return out
+
+
 # =================================================
 # LITE PRESENTATION
 # =================================================
@@ -343,10 +333,10 @@ def profile_lookup():
             "text": "No profile data yet."
         }), 200
 
-    return jsonify({
-        "avatar_uuid": profile.get("avatar_uuid"),
-        "text": profile.get("pretty_text")
-    }), 200
+   return jsonify({
+    "avatar_uuid": profile["avatar_uuid"],
+    "text": lite_profile(profile)
+}), 200
 
 @app.route("/room/vibe", methods=["POST"])
 def room_vibe():
