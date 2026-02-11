@@ -322,6 +322,7 @@ def profile_self():
 
 @app.route("/profile/lookup", methods=["POST"])
 def profile_lookup():
+    build_profiles()  # 🔴 REQUIRED
     data = request.get_json(silent=True) or {}
 
     uuid = data.get("uuid")
