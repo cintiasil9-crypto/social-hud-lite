@@ -312,7 +312,8 @@ def profile_self():
 
 @app.route("/profile/lookup", methods=["POST"])
 def profile_lookup():
-    build_profiles()  # 🔴 REQUIRED
+    build_profiles()  # REQUIRED
+
     data = request.get_json(silent=True) or {}
 
     uuid = data.get("uuid")
@@ -333,10 +334,11 @@ def profile_lookup():
             "text": "No profile data yet."
         }), 200
 
-   return jsonify({
-    "avatar_uuid": profile["avatar_uuid"],
-    "text": lite_profile(profile)
-}), 200
+    return jsonify({
+        "avatar_uuid": profile["avatar_uuid"],
+        "text": lite_profile(profile)
+    }), 200
+
 
 @app.route("/room/vibe", methods=["POST"])
 def room_vibe():
