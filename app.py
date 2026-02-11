@@ -334,10 +334,13 @@ def profile_lookup():
             "text": "No profile data yet."
         }), 200
 
-    return jsonify({
+    return Response(
+    json.dumps({
         "avatar_uuid": profile["avatar_uuid"],
         "text": lite_profile(profile)
-    }), 200
+    }, ensure_ascii=False),
+    mimetype="application/json; charset=utf-8"
+)
 
 
 @app.route("/room/vibe", methods=["POST"])
