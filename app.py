@@ -5,13 +5,13 @@ from collections import defaultdict
 # =================================================
 # APP SETUP
 # =================================================
-
 app = Flask(__name__)
-GOOGLE_PROFILES_FEED = os.environ["GOOGLE_PROFILES_FEED"]
+
+GOOGLE_PROFILES_FEED = os.environ.get("GOOGLE_PROFILES_FEED")
+print("GOOGLE_PROFILES_FEED:", GOOGLE_PROFILES_FEED)
 
 CACHE = {"profiles": None, "ts": 0}
 CACHE_TTL = 300
-age = (NOW - ts) / 3600
 
 # =========================
 # PROFILE INDEXES (GLOBAL)
