@@ -11,7 +11,7 @@ GOOGLE_PROFILES_FEED = os.environ["GOOGLE_PROFILES_FEED"]
 
 CACHE = {"profiles": None, "ts": 0}
 CACHE_TTL = 300
-NOW = time.time()
+age = (NOW - ts) / 3600
 
 # =========================
 # PROFILE INDEXES (GLOBAL)
@@ -107,7 +107,7 @@ MODIFIER_PHRASE = {
 # =================================================
 
 def decay(ts):
-    age = (NOW - ts) / 3600
+    age = (time.time() - ts) / 3600
     if age <= 1: return 1.0
     if age <= 24: return 0.7
     return 0.4
@@ -213,7 +213,7 @@ def build_profiles():
 
         msgs = max(int(r.get("messages", 1)), 1)
         p["messages"] += msgs * w
-        if NOW - ts < 3600:
+        if time.time() - ts < 3600:
             p["recent"] += msgs
 
         hits = extract_hits(r.get("context_sample", ""))
